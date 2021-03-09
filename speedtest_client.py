@@ -24,6 +24,7 @@ def test_us(i,d):
     # Create socket for server
 
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
+    s.settimeout(5)
     #print("\n \n starting test_us() for thread ", i)
     # Let's send data through UDP protocol
     packet_counter =0
@@ -44,14 +45,17 @@ def test_us(i,d):
 
     send_data = "Done " + str(pc)
     s.sendto(send_data.encode('utf-8'), (ip, port))
-
-    p_sent = packet_counter
-    rdata, address = s.recvfrom(4096)
-    data_list = rdata.decode().split(",")
-    p_rx = data_list[0]
-    p_lost = data_list[1]
-    packet_loss = 1 - int(p_rx) / int(packet_counter)
-    d[i] = packet_loss
+    
+    try:
+        p_sent = packet_counter
+        rdata, address = s.recvfrom(4096)
+        data_list = rdata.decode().split(",")
+        p_rx = data_list[0]
+        p_lost = data_list[1]
+        packet_loss = 1 - int(p_rx) / int(packet_counter)
+        d[i] = packet_loss
+    except:
+        print("Socket Timeout for thread:", i)
 
     # close the socket
     s.close()
@@ -61,7 +65,7 @@ if __name__ =="__main__":
     t = dict()
     queue = Queue()
     d = dict()
-    print("Test speed of Internet Connection\n")
+    print("Testing speed of your Internet Connection\n")
     st = speedtest.Speedtest()
     dl = st.download()
     ul = st.upload()
@@ -71,18 +75,6 @@ if __name__ =="__main__":
     max_p_loss = 0
     while count < MAX_THREADS and max_p_loss < 0.1:
         print("\n starting ", count, " sessions\n")
-        #processes = [Process(target=test_us, args=(queue,)) for _ in range(count)]
-
-        #for p in processes:
-        #    p.start()
-
-        #for p in processes:
-        #    p.join()
-
-        #results = [queue.get() for _ in processes]
-        #max_p_loss = max(results)
-        #print(count, " sessions:", max_p_loss)
-        #count += 1
 
         for i in range(count):
             t[i] = threading.Thread(target=test_us, args=(i,d,))
@@ -97,9 +89,10 @@ if __name__ =="__main__":
         #with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
         #    t[i] = executor.submit((test_us,(i,d)))
 
-        print(d.values())
+        #print(d.values())
         max_p_loss = max(d.values())
+        print("Max packet loss with %d sesssions was %f" % (count, max_p_loss))
         count +=1
-
+    print("Max packet loss with %d sesssions was %f" % (count, max_p_loss))
     print("Finished")
 
