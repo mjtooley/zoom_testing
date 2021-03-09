@@ -1,6 +1,7 @@
 import socket
 hostname = socket.gethostname()
-ip = '10.0.0.82'
+#ip = socket.gethostbyname(hostname)
+ip = ''
 port = 8801
 
 s= socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -11,7 +12,7 @@ s.bind(server_address)
 last_counter = dict()
 packet_count = dict()
 packets_missed = dict()
-print("### Server is listenting ###")
+print("### Server is listenting for ", server_address)
 while True:
     data, address = s.recvfrom(4096)
     recv_ip = address[0]
@@ -31,5 +32,7 @@ while True:
             packets_missed[port] += counter - last_counter[port]
             last_counter[port] = counter
     if test == "Done":
+        packet_loss =  (packets_missed[port] / packet_count[port])
+	print("Done:%d   missed %d  totat %d packet loss: %f" % (port, packets_missed[port], packet_count[port], packet_loss) )
         send_data = str(packet_count[port])+','+str(packets_missed[port])
         s.sendto(send_data.encode('utf-8'), (recv_ip, port))
