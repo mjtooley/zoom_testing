@@ -10,7 +10,7 @@ import speedtest
 
 
 hostname = socket.gethostname()
-ip = "10.0.0.82"
+ip = "3.209.93.245"
 port = 8801
 PPS = 1  # 400 packets per second
 PACKETS_TO_SEND = 5*PPS
