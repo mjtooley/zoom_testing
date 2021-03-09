@@ -12,8 +12,8 @@ import speedtest
 hostname = socket.gethostname()
 ip = "3.209.93.245"
 port = 8801
-PPS = 1  # 400 packets per second
-PACKETS_TO_SEND = 5*PPS
+PPS = 400  # 400 packets per second
+PACKETS_TO_SEND = 10*PPS
 MAX_THREADS = 100
 
 def test_us(i,d):
