@@ -2,7 +2,7 @@ import socket
 import time
 import random
 import threading
-import speedtest as st
+#import speedtest as st
 import numpy as np
 import sys, getopt
 
