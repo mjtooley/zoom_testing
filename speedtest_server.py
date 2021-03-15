@@ -41,6 +41,8 @@ def control_listener(d):
                 time.sleep(5)
         except Exception as e:
             print(e)
+            print("Resetting the stats")
+            d.clear()  # Clear the dictionary
 
         finally:
             # Clean up the connection
