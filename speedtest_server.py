@@ -84,7 +84,8 @@ def data_listener(pl_dict):
             'packets_missed': packets_missed[port],
             'recv_ip': recv_ip,
             'recv_port': port,
-            'packet_loss': (packets_missed[port] / packet_count[port])
+            'packet_loss': (packets_missed[port] / packet_count[port]),
+            'last_counter': last_counter[port]
         }
 
 def main(argv):
