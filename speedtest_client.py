@@ -8,15 +8,15 @@ import sys, getopt
 import json
 
 hostname = socket.gethostname()
-ip = "3.209.93.245"
-#ip = '10.0.0.181'
+#ip = "3.209.93.245"
+ip = '10.0.0.181'
 port = 8801
 HD_PPS = 400  # 400 packets per second
 SD_PPS = 100
 PACKETS_TO_SEND = 10*HD_PPS
 MAX_THREADS = 100
 
-def test_us(pps,psize, testing):
+def test_us(pps,psize, state):
     # Create socket for server
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
     s.settimeout(5) # set udp socket read timeout
@@ -24,7 +24,7 @@ def test_us(pps,psize, testing):
     packet_counter =0
     packet_loss = 0
     while (True) :
-        if testing:
+        if state['state'] == 'run':
             #packet_size = random.randint(1000,1200)
             packet_size = np.random.normal(size=1, loc=psize, scale=100)
             data = "x" * int(packet_size[0])
@@ -34,11 +34,10 @@ def test_us(pps,psize, testing):
             packet_counter +=1
             sleep_time = (1/pps)+random.randint(0,1)/1000 # randomize the backoff
             time.sleep(sleep_time)
-        else:
+        if state['state'] == 'pause':
             pass
-
-    send_data = "Done " + str(pc)
-    s.sendto(send_data.encode('utf-8'), (ip, port))
+        if state['state'] == 'end':
+            break
 
     # close the socket
     s.close()
@@ -54,7 +53,12 @@ def msg_len(s):
     total = int(length)
     return total
 
-def get_stats(s, total):
+def get_stats(s):
+    msg = "Get stats\n"
+    s.send(bytes(msg,encoding='utf-8'))
+
+
+    total = msg_len(s)
     view = memoryview(bytearray(total))
     next_offset = 0
     while total - next_offset >0:
@@ -65,6 +69,10 @@ def get_stats(s, total):
     except (TypeError, ValueError):
         raise Exception('Data received was not in JSON Format')
     return deserialized
+
+def send_done(s):
+    msg = "Done\n"
+    s.send(bytes(msg, encoding='utf-8'))
 
 def get_max_loss(d):
     max_loss = 0
@@ -77,7 +85,8 @@ def zoom_test(pps, p_size):
     max_p_loss = 0
     t = dict()
     d = dict()
-    testing = True
+    testing = dict()
+    testing['state'] = 'run'
 
     # Create a TCP/IP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -88,24 +97,30 @@ def zoom_test(pps, p_size):
     for i in range(10):
         t[i] = threading.Thread(target=test_us, args=(pps,p_size, testing))
         t[i].start()
-    i = 11
+    i = 10
     while max_p_loss < .10:
         t[i] = threading.Thread(target=test_us, args=(pps,p_size, testing))
         t[i].start()
         # Let the test run for a few seconds
         time.sleep(3)
-        testing = False # pause the testing
+
+        testing['state'] = 'pause' # pause the testing
+
         # Now read the test statistics
-        m_len = msg_len(sock)
-        stats = get_stats(sock,m_len)
+        stats = get_stats(sock)
         max_p_loss = get_max_loss(stats)
         print("Threads {}  Loss {}".format(i,max_p_loss))
         i += 1
-        testing = True # start the packets again
+        testing['state'] = 'run' # start the packets again
 
-    for j in range(i):
-        t[j].stop()
+    testing['state'] = 'end'
 
+    for j in range(len(t)):
+        t[j].join()
+
+    send_done(sock)
+    print("Closing TCP socket")
+    sock.close()
     return i, max_p_loss
 
 def main(argv):
@@ -146,10 +161,9 @@ def main(argv):
     else:
         count = int(MAX_THREADS * 0)+2
 
-    #p_count = test_time*PPS
+    print("Starting HD testing\n")
     hd_count, hd_loss = zoom_test(HD_PPS, 1000)
-    #pps = int(PPS/4)
-    #p_count = test_time * pps
+    print("Starting SD testing\n")
     sd_count, sd_loss = zoom_test( SD_PPS, 900)
 
     print("Finished testing\n")
