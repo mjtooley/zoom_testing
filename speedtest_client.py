@@ -8,8 +8,8 @@ import sys, getopt
 import json
 
 hostname = socket.gethostname()
-#ip = "3.209.93.245"
-ip = '10.0.0.181'
+ip = "3.209.93.245"
+#ip = '10.0.0.181'
 port = 8801
 HD_PPS = 400  # 400 packets per second
 SD_PPS = 100
