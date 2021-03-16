@@ -4,6 +4,7 @@ import json
 import threading
 import sys
 from queue import Queue
+import struct
 
 MAX_PACKET_LOSS = .15
 
@@ -14,6 +15,88 @@ def max_packet_loss(pl_dict):
             max_p_loss = pl_dict[key]['packet_loss']
     return max_p_loss
 
+#assume a socket disconnect (data returned is empty string) means  all data was #done being sent.
+def recv_basic(the_socket):
+    total_data=[]
+    while True:
+        data = the_socket.recv(8192)
+        if not data: break
+        total_data.append(data)
+    return ''.join(total_data)
+
+def recv_timeout(the_socket, timeout=2):
+    # make socket non blocking
+    the_socket.setblocking(0)
+
+    # total data partwise in an array
+    total_data = [];
+    data = '';
+
+    # beginning time
+    begin = time.time()
+    while 1:
+        # if you got some data, then break after timeout
+        if total_data and time.time() - begin > timeout:
+            break
+
+        # if you got no data at all, wait a little longer, twice the timeout
+        elif time.time() - begin > timeout * 2:
+            break
+
+        # recv something
+        try:
+            data = the_socket.recv(8192)
+            if data:
+                total_data.append(data)
+                # change the beginning time for measurement
+                begin = time.time()
+            else:
+                # sleep for sometime to indicate a gap
+                time.sleep(0.1)
+        except:
+            pass
+
+    # join all parts to make final string
+    return ''.join(total_data)
+
+End='\n'
+def recv_end(the_socket):
+    total_data=[];data=''
+    while True:
+            data=the_socket.recv(8192)
+            data = data.decode('utf-8')
+            if End in data:
+                total_data.append(data[:data.find(End)])
+                break
+            total_data.append(data)
+            if len(total_data)>1:
+                #check if end_of_data was split
+                last_pair=total_data[-2]+total_data[-1]
+                if End in last_pair:
+                    total_data[-2]=last_pair[:last_pair.find(End)]
+                    total_data.pop()
+                    break
+    return ''.join(total_data)
+
+def recv_size(the_socket):
+    #data length is packed into 4 bytes
+    total_len=0;total_data=[];size=sys.maxint
+    size_data=sock_data='';recv_size=8192
+    while total_len<size:
+        sock_data=the_socket.recv(recv_size)
+        if not total_data:
+            if len(sock_data)>4:
+                size_data+=sock_data
+                size=struct.unpack('>i', size_data[:4])[0]
+                recv_size=size
+                if recv_size>524288:recv_size=524288
+                total_data.append(size_data[4:])
+            else:
+                size_data+=sock_data
+        else:
+            total_data.append(sock_data)
+        total_len=sum([len(i) for i in total_data ])
+    return ''.join(total_data)
 
 def control_listener(d):
     server_address = ('', 8802)
@@ -31,14 +114,22 @@ def control_listener(d):
         try:
             # Receive the data in small chunks and retransmit it
             while max_packet_loss(d)< MAX_PACKET_LOSS:
-                try:
-                    data = json.dumps(d)
-                except Exception as e:
-                    print(e)
-                header_str = str(len(data)) + '\n'
-                connection.send(bytes(header_str,encoding='utf-8'))
-                connection.sendall(bytes(data,encoding='utf-8'))
-                time.sleep(5)
+                # Wait for a request for data
+                msg = recv_end(connection)
+                if msg == 'Get stats':
+                    # Send the stats
+                    try:
+                        data = json.dumps(d)
+                    except Exception as e:
+                        print(e)
+                    header_str = str(len(data)) + '\n'
+                    connection.send(bytes(header_str,encoding='utf-8'))
+                    connection.sendall(bytes(data,encoding='utf-8'))
+                if msg == "Done":
+                    d.clear()
+                    connection.close()
+                    break
+
         except Exception as e:
             print(e)
             print("Resetting the stats")
